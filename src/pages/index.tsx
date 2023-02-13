@@ -5,7 +5,7 @@ import { remult, UserInfo } from "remult";
 import { Task } from "../shared/Task";
 import { TasksController } from "../shared/TasksController";
 import ably from "ably/promises";
-import { AblySubscriptionClient } from "remult/live-query/ably";
+import { AblySubscriptionClient } from "remult/ably";
 
 const taskRepo = remult.repo(Task);
 
@@ -51,6 +51,7 @@ export default function Home() {
         })
         .subscribe((info) => setTasks(info.applyChanges));
   }, [session]);
+  if (session.status !== "authenticated") return <></>;
   return (
     <div>
       <h1>Todos</h1>
@@ -59,23 +60,25 @@ export default function Home() {
           Hello {session.data?.user?.name}{" "}
           <button onClick={() => signOut()}>Sign out</button>
         </div>
-        {typeof window !== "undefined" &&
-          taskRepo.metadata.apiInsertAllowed && (
-            <form onSubmit={addTask}>
-              <input
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="What needs to be done?"
-              />
-              <button>Add</button>
-            </form>
-          )}
+        {taskRepo.metadata.apiInsertAllowed && (
+          <form onSubmit={addTask}>
+            <input
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              placeholder="What needs to be done?"
+            />
+            <button>Add</button>
+          </form>
+        )}
         {tasks.map((task) => {
           const setTask = (value: Task) =>
             setTasks((tasks) => tasks.map((t) => (t === task ? value : t)));
 
-          const setCompleted = async (completed: boolean) =>
-            setTask(await taskRepo.save({ ...task, completed }));
+          const setCompleted = async (completed: boolean) => {
+            const updatedTask = { ...task, completed };
+            setTask(updatedTask);
+            taskRepo.save(updatedTask)
+          };
 
           const setTitle = (title: string) => setTask({ ...task, title });
 
@@ -108,10 +111,9 @@ export default function Home() {
                 onChange={(e) => setTitle(e.target.value)}
               />
               <button onClick={saveTask}>Save</button>
-              {typeof window !== "undefined" &&
-                taskRepo.metadata.apiDeleteAllowed && (
-                  <button onClick={deleteTask}>Delete</button>
-                )}
+              {taskRepo.metadata.apiDeleteAllowed && (
+                <button onClick={deleteTask}>Delete</button>
+              )}
             </div>
           );
         })}
